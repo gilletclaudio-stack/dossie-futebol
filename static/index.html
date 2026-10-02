@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dossiê de Futebol</title>
+<style>
+:root{--bg:#F6F8F5;--ink:#14231C;--mute:#5B6B62;--line:#D5DDD3;--green:#1F6B45;--amber:#E0A100;--red:#C0392B;--card:#fff}
+@media(prefers-color-scheme:dark){:root{--bg:#0F1A14;--ink:#E8EFEA;--mute:#93A59A;--line:#27392E;--green:#4DBE86;--amber:#F0B92E;--red:#FF6B5B;--card:#16251C}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,sans-serif}
+main{max-width:760px;margin:0 auto;padding:20px 16px 48px}h1{margin:0 0 12px}h2{margin:28px 0 8px;font-size:1.25rem}
+input{width:100%;font:inherit;color:var(--ink);background:var(--card);border:2px solid var(--line);border-radius:10px;padding:12px}
+#sug{background:var(--card);border:1px solid var(--line);border-radius:10px;margin-top:4px}
+#sug button{display:flex;gap:10px;align-items:center;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:8px 12px;font:inherit;color:var(--ink);cursor:pointer}
+#sug img,.ph{width:44px;height:44px;border-radius:50%;object-fit:cover}
+.head{display:flex;gap:14px;align-items:center;margin-top:20px}.mute{color:var(--mute)}
+.alert{padding:10px 12px;border-radius:10px;margin:12px 0;border-left:5px solid var(--red);background:var(--card)}
+.alert.ok{border-color:var(--green)}
+.tag{display:inline-block;font-size:.75rem;padding:1px 8px;border-radius:99px;color:#fff;margin-right:6px}
+.transferencia{background:#8E44AD}.lesao{background:var(--red)}.polemica{background:#D35400}.outro{background:var(--mute)}
+.tbl{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}
+li{margin:6px 0}a{color:var(--green)}button.s{background:var(--green);color:#fff;border:0;border-radius:8px;padding:8px 14px;font:inherit;cursor:pointer}
+</style></head><body><main>
+<h1>Dossiê de Futebol</h1>
+<input id="q" type="search" placeholder="Digite o nome de um jogador" autocomplete="off">
+<div id="sug" hidden></div><div id="out"></div></main>
+<script>
+const $=s=>document.querySelector(s),q=$('#q'),sug=$('#sug'),out=$('#out');
+const esc=s=>String(s??'—').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let t,timer,cur;
+q.oninput=()=>{clearTimeout(t);t=setTimeout(async()=>{
+ if(q.value.trim().length<3){sug.hidden=true;return}
+ const r=await fetch('/api/search?q='+encodeURIComponent(q.value)).then(r=>r.json()).catch(()=>[]);
+ sug.hidden=!r.length;
+ sug.innerHTML=r.map(p=>`<button data-id="${p.id}"><img src="${esc(p.photo)}" alt=""><span>${esc(p.name)}<br><small class="mute">${esc(p.nat)} · ${esc(p.pos)}</small></span></button>`).join('')},350)};
+sug.onclick=e=>{const b=e.target.closest('button');if(b)load(b.dataset.id)};
+async function load(id){sug.hidden=true;cur=id;out.innerHTML='<p class="mute">Carregando...</p>';
+ const d=await fetch('/api/player/'+id).then(r=>r.json());render(d);
+ clearInterval(timer);timer=setInterval(()=>refreshNews(id),300000)}
+async function refreshNews(id){if(cur!==id)return;const d=await fetch('/api/player/'+id).then(r=>r.json());$('#news').innerHTML=newsHtml(d.news)}
+const lab={transferencia:'Transferência',lesao:'Lesão',polemica:'Polêmica',outro:'Notícia'};
+const newsHtml=n=>n.length?'<ul>'+n.map(x=>`<li><span class="tag ${x.cat||'outro'}">${lab[x.cat]||'Notícia'}</span><a href="${esc(x.link)}" target="_blank" rel="noopener">${esc(x.title)}</a><br><small class="mute">${esc(x.date)}</small></li>`).join('')+'</ul>':'<p class="mute">Sem notícias recentes.</p>';
+function render(d){const p=d.profile,inj=d.injuries[0];
+ const recent=inj&&(Date.now()-new Date(inj.date))<30*864e5;
+ out.innerHTML=`<div class="head"><img class="ph" style="width:72px;height:72px" src="${esc(p.photo)}" alt=""><div><h2 style="margin:0">${esc(p.name)}</h2><span class="mute">${esc(p.position)} · ${esc(p.nationality)} · ${esc(p.age)} anos</span></div></div>
+ <p class="mute">Nascimento: ${esc(p.birth?.date)} (${esc(p.birth?.place)}) · ${esc(p.height)} · ${esc(p.weight)}</p>
+ <div class="alert ${recent?'':'ok'}">${recent?`<b>Lesão recente:</b> ${esc(inj.reason)} (${esc(inj.date)}, ${esc(inj.team)})`:'Sem lesão registrada nos últimos 30 dias.'}</div>
+ <button class="s" id="sm">Gerar resumo de carreira com IA</button><p id="smo"></p>
+ <h2>Rumores, lesões e polêmicas</h2><div id="news">${newsHtml(d.news)}</div>
+ <h2>Estatísticas por temporada</h2><div class="tbl"><table><tr><th>Temp.</th><th>Clube / Liga</th><th>Jogos</th><th>Min</th><th>Gols</th><th>Ast</th><th>Fin</th><th>Pass</th><th>Des</th><th>Int</th><th>CA</th><th>CV</th><th>Nota</th></tr>
+ ${d.stats.map(s=>`<tr><td>${s.season}</td><td>${esc(s.team)} · ${esc(s.league)}</td><td>${esc(s.games)}</td><td>${esc(s.minutes)}</td><td>${esc(s.goals)}</td><td>${esc(s.assists)}</td><td>${esc(s.shots)}</td><td>${esc(s.passes)}</td><td>${esc(s.tackles)}</td><td>${esc(s.interceptions)}</td><td>${esc(s.yellow)}</td><td>${esc(s.red)}</td><td>${esc(s.rating?.slice(0,4))}</td></tr>`).join('')}</table></div>
+ <h2>Transferências</h2><ul>${d.transfers.map(t=>`<li>${esc(t.date)}: ${esc(t.from)} → ${esc(t.to)} <span class="mute">(${esc(t.type)})</span></li>`).join('')||'<li class="mute">Sem registros.</li>'}</ul>
+ <h2>Títulos</h2><ul>${d.trophies.filter(t=>t.place==='Winner').map(t=>`<li>${esc(t.league)} ${esc(t.season)}</li>`).join('')||'<li class="mute">Sem registros.</li>'}</ul>
+ <h2>Lesões (temporada atual)</h2><ul>${d.injuries.map(i=>`<li>${esc(i.date)}: ${esc(i.reason)} · ${esc(i.team)}</li>`).join('')||'<li class="mute">Nenhuma.</li>'}</ul>`;
+ $('#sm').onclick=async()=>{$('#smo').textContent='Gerando...';const r=await fetch('/api/summary/'+p.id).then(r=>r.json());$('#smo').textContent=r.summary||'Configure ANTHROPIC_API_KEY.'}}
+</script></body></html>
